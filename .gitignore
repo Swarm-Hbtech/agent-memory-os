@@ -1,0 +1,15 @@
+# Compiled context (generated, not stored)
+compiled/*.txt
+
+# Local health baselines
+.health/
+
+# Local backups
+.backups/
+
+# Cron logs
+runtime/*-cron.log
+
+# OS
+.DS_Store
+*.swp
