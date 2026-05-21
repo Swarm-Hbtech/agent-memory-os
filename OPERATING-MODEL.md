@@ -1,243 +1,231 @@
 # OPERATING-MODEL.md
-# Операционная модель: Swarm + Opus.Dev + Igor
-# v2.0 — утверждена 2026-04-28
+# Operating Model: Multi-Agent Memory System
+# v2.0
 
-**Авторы:** Swarm 🛡️ + Gemini (аудит) + Igor (слои 6-7)
-**Статус:** Утверждена к реализации
-
----
-
-## Назначение этого документа
-
-Единственный авторитетный источник правил взаимодействия двух AI-агентов (Swarm и Opus.Dev)
-и их владельца (Igor). Все остальные файлы памяти подчиняются этой модели.
+**Status:** Production-ready template
 
 ---
 
-## Роли в системе
+## Purpose
 
-### Swarm 🛡️
-- **Дом:** Timeweb MSK-1, YOUR_PRODUCTION_IP
-- **Роль:** Production Ops / Deploy / Incident Response
-- **Зона:** всё что на Timeweb: PM2, nginx, postgres, openclaw prod, боты
-- **Не делает без явной задачи:** глубокую разработку, архитектуру новых модулей
-
-### Opus.Dev 🧠
-- **Дом:** Amsterdam, YOUR_DEV_IP
-- **Роль:** Development / Architecture / Code Authoring
-- **Зона:** code, architecture, project docs, staging
-- **Не делает без явной задачи:** production operations на Timeweb
-
-### Igor 👤
-- **Роль:** Human Owner / Source of Intent / Final Arbiter
-- **Зона:** приоритеты, бизнес-контекст, подтверждение важных действий
-- **Human Vault:** хранит ключевые файлы в Telegram бессрочно
+Single authoritative source of interaction rules between two AI agents (Agent A and Agent B)
+and their human owner. All other memory files are subordinate to this model.
 
 ---
 
-## Архитектура памяти v2 — 7 слоёв
+## Roles
+
+### Agent A 🏭
+- **Home:** Production server
+- **Role:** Production Ops / Deploy / Incident Response
+- **Zone:** everything on production: process manager, reverse proxy, databases, bots
+- **Does NOT do without explicit task:** deep development, architecture of new modules
+
+### Agent B 🧠
+- **Home:** Development server
+- **Role:** Development / Architecture / Code Authoring
+- **Zone:** code, architecture, project docs, staging
+- **Does NOT do without explicit task:** production operations
+
+### Owner 👤
+- **Role:** Human Owner / Source of Intent / Final Arbiter
+- **Zone:** priorities, business context, approval of important actions
+- **Human Vault:** stores critical files in Telegram indefinitely
+
+---
+
+## Memory Architecture v2 — 7 Layers
 
 ```
-Слой 1: Durable Memory     — Git-репозиторий как долговременное хранилище
-Слой 2: Asymmetric Write   — каждый агент пишет только в свои файлы
-Слой 3: Context Compiler   — bash-скрипт собирает стартовый payload
-Слой 4: Memory Watchdog    — превентивный мониторинг целостности памяти
-Слой 5: Blast Radius       — OS-level ограничения на запись
-Слой 6: Point-in-Time      — tar.gz слепок каждые 3-5 дней + offsite
-Слой 7: Human Vault        — важные файлы отправляются Igor в Telegram
+Layer 1: Durable Memory     — Git repository as long-term storage
+Layer 2: Asymmetric Write   — each agent writes only to its own files
+Layer 3: Context Compiler   — bash script assembles startup payload
+Layer 4: Memory Watchdog    — preventive integrity monitoring
+Layer 5: Blast Radius       — OS-level write restrictions
+Layer 6: Point-in-Time      — tar.gz snapshot every 3-5 days + offsite
+Layer 7: Human Vault        — critical files sent to owner via Telegram
 ```
 
 ---
 
-## Слой 1: Durable Memory (Git)
+## Layer 1: Durable Memory (Git)
 
-**Репозиторий:** `github.com/YOUR_GITHUB_ORG/agent-memory-os`
-**Ветка:** `main` (в будущем переименовать в `main`)
+**Repository:** `github.com/YOUR_ORG/agent-memory-os`
+**Branch:** `main`
 
-**Правила:**
-- Git = долговременное хранилище, не real-time coordination bus
-- Перед записью: `git pull --rebase origin main`
-- После записи: commit + push
-- Конфликтов почти нет, потому что запись асимметрична (Слой 2)
+**Rules:**
+- Git = long-term storage, not real-time coordination bus
+- Before writing: `git pull --rebase origin main`
+- After writing: commit + push
+- Conflicts are nearly impossible because writes are asymmetric (Layer 2)
 
 ---
 
-## Слой 2: Asymmetric Write Model (CQRS)
+## Layer 2: Asymmetric Write Model (CQRS)
 
-**Ключевое правило:** агент пишет ТОЛЬКО в свои файлы, читает всё.
+**Key rule:** an agent writes ONLY to its own files, reads everything.
 
-### Swarm пишет в:
+### Agent A writes to:
 ```
-runtime/SWARM-STATUS.md
-runtime/SWARM-HANDOFF.md
-SWARM-BLUEPRINT.md
-02-INFRA/SERVERS.md (production side)
-```
-
-### Opus.Dev пишет в:
-```
-runtime/OPUS-STATUS.md
-runtime/OPUS-HANDOFF.md
-OPUS-DEV-BLUEPRINT.md
-projects/* (новые доки)
+runtime/AGENT-A-STATUS.md
+runtime/AGENT-A-HANDOFF.md
+blueprints/AGENT-A-BLUEPRINT.md
+infra/SERVERS.md (production side)
 ```
 
-### Shared Core (редко, только по явной задаче):
+### Agent B writes to:
+```
+runtime/AGENT-B-STATUS.md
+runtime/AGENT-B-HANDOFF.md
+blueprints/AGENT-B-BLUEPRINT.md
+projects/* (new docs)
+```
+
+### Shared Core (rarely, only by explicit task):
 ```
 MASTER.md
-MEMORY.md
-USER.md
 OPERATING-MODEL.md
-02-INFRA/SSH-TRUST.md
+infra/SSH-TRUST.md
 ```
 
-**Правило Blast Radius:** агент НЕ редактирует IDENTITY-файл другого агента.
-Нарушение = стоп и алерт Igor.
+**Blast Radius Rule:** an agent NEVER edits the other agent's IDENTITY file.
+Violation = stop and alert owner.
 
 ---
 
-## Слой 3: Context Compiler (prepare-new.sh)
+## Layer 3: Context Compiler (prepare-new.sh)
 
-**Требования:**
-- только bash + awk/sed/cat + системный Python
-- работает при мёртвом PM2, упавшей БД, режиме выживания
-- НЕ зависит от Node.js или app runtime
+**Requirements:**
+- bash only + awk/sed/cat + system Python
+- works with dead process manager, crashed DB, survival mode
+- does NOT depend on Node.js or app runtime
 
-**Что собирает:**
-1. Identity агента (кто я, где я)
-2. Bootstrap (что делать сейчас)
-3. Handoff второго агента (что передал)
+**What it assembles:**
+1. Agent identity (who am I, where am I)
+2. Bootstrap (what to do now)
+3. Handoff from the other agent (what they passed)
 4. Critical infra markers
 5. Current priorities
 
-**Выход:**
-- `compiled/swarm-context.txt` — для Swarm
-- `compiled/opus-context.txt` — для Opus.Dev
-- Минимум markdown-украшений, только структурированный plain text
+**Output:**
+- `compiled/agent-a-context.txt` — for Agent A
+- `compiled/agent-b-context.txt` — for Agent B
 
-**Запуск:** при каждом `/new`
-
----
-
-## Слой 4: Memory Watchdog (memory-healthcheck.sh)
-
-**Режим:** превентивный watchdog, не только on-demand
-
-**Триггеры тревоги:**
-- core-файл уменьшился > 30% внезапно
-- появились git conflict markers (`<<<<<<<`)
-- исчез critical файл (MASTER, IDENTITY, SWARM-BLUEPRINT)
-- файл стал пустым
-- IDENTITY-SWARM.md изменён Opus-агентом (и наоборот)
-
-**Действия при тревоге:**
-1. Создать `memory.lock` → заблокировать запись
-2. Алерт Igor через Telegram бота
-3. Зафиксировать событие в `runtime/WATCHDOG-LOG.md`
-4. НЕ пытаться автоисправить — ждать подтверждения
-
-**Запуск:** cron каждые 30 минут
+**Run:** on every `/new` session start
 
 ---
 
-## Слой 5: Blast Radius Control
+## Layer 4: Memory Watchdog (memory-healthcheck.sh)
 
-**Физические ограничения:**
+**Mode:** preventive watchdog, not just on-demand
 
-### На Swarm (Timeweb):
+**Alert triggers:**
+- core file missing
+- core file empty
+- core file shrank > 30% suddenly
+- git conflict markers found (`<<<<<<<`)
+- one agent's IDENTITY file modified by the other agent
+
+**Actions on alert:**
+1. Create `memory.lock` → block all writes
+2. Alert owner via Telegram bot
+3. Log event in `runtime/WATCHDOG-LOG.md`
+4. Do NOT attempt auto-fix — wait for owner confirmation
+
+**Schedule:** cron every 30 minutes
+
+---
+
+## Layer 5: Blast Radius Control
+
+**Physical restrictions:**
+
+### On production server:
 ```bash
-# OPUS-файлы: только чтение для openclaw
-chown root:root agent-memory-os/runtime/OPUS-*.md
-chmod 644 agent-memory-os/runtime/OPUS-*.md  # r/o для записи агентом
-
-# IDENTITY-SWARM: только Swarm пишет
-chown openclaw:openclaw IDENTITY-SWARM.md
-chmod 644 IDENTITY-SWARM.md
+# Agent B files: read-only for Agent A
+chown root:root agent-memory-os/runtime/AGENT-B-*.md
+chmod 644 agent-memory-os/runtime/AGENT-B-*.md
 ```
 
-### CRITICAL_INFRA маркировка:
-Следующие компоненты помечены как `[CRITICAL_INFRA: DO_NOT_TOUCH]`:
-- xray / WARP / proxy конфиги
-- OpenClaw gateway
-- nginx / SSL
+### CRITICAL_INFRA marking:
+The following components are marked `[CRITICAL_INFRA: DO_NOT_TOUCH]`:
+- Reverse proxy configs (nginx/caddy)
+- Gateway service
+- SSL certificates
 - SSH authorized_keys
-- PM2 critical services (ozon-bot, gamacchi-prod)
+- Critical production services
 
-Агент НЕ трогает CRITICAL_INFRA без явной команды Igor.
+Agent does NOT touch CRITICAL_INFRA without explicit owner command.
 
 ---
 
-## Слой 6: Point-in-Time Backup (3-2-1 Rule)
+## Layer 6: Point-in-Time Backup (3-2-1 Rule)
 
-**Расписание:** каждые 3-5 дней (cron на обоих серверах)
+**Schedule:** every 3-5 days (cron on both servers)
 
-**Что бэкапируется:**
-- `/home/openclaw/agent-memory-os/` → tar.gz с датой
-- git tag с именем `backup-YYYY-MM-DD`
+**What gets backed up:**
+- Full memory repo → tar.gz with date
+- git tag: `backup-YYYY-MM-DD`
 
-**Offsite доставка (физически отвязана от контура исполнения):**
-- tar.gz отправляется в приватный Telegram-канал (через бота)
-- ИЛИ на S3-совместимое хранилище (Timeweb Object Storage)
+**Offsite delivery (physically decoupled from execution):**
+- tar.gz sent to private Telegram channel (via bot)
+- OR to S3-compatible storage
 
-**Ротация:** хранить последние 4 слепка
+**Rotation:** keep last 4 snapshots
 
-**RPO (Recovery Point Objective):** ≤ 2 дня потерь данных
+**RPO (Recovery Point Objective):** ≤ 2 days of data loss
 
-**Cron пример:**
+**Cron example:**
 ```bash
-0 2 */3 * * /home/openclaw/agent-memory-os/scripts/backup-memory.sh
+0 3 */3 * * /path/to/agent-memory-os/scripts/backup-memory.sh
 ```
 
 ---
 
-## Слой 7: Human Vault (Telegram)
+## Layer 7: Human Vault (Telegram)
 
-**Правило:** каждый roadmap-файл и проработанное ТЗ немедленно отправляется Igor в Telegram файлом.
+**Rule:** every roadmap file and completed spec is immediately sent to owner via Telegram.
 
-**Триггеры отправки:**
-- создан новый `projects/*.md`
-- обновлён `roadmap-*.md`
-- завершено ТЗ / архитектурный документ
-- существенное обновление MASTER.md
+**Send triggers:**
+- new `projects/*.md` created
+- `roadmap-*.md` updated
+- spec / architecture document completed
+- significant MASTER.md update
 
-**Транспорт:** OpenClaw message tool → Telegram → Igor (ID: YOUR_TG_CHAT_ID)
-
-**Почему это надёжнее всего:**
-- Telegram хранит файлы бессрочно
-- не зависит ни от одного сервера
-- не зависит от GitHub
-- не зависит от агентов
-- Igor читает → контекст восстанавливается мгновенно
+**Why this is the most reliable:**
+- Telegram stores files indefinitely
+- independent of any server
+- independent of GitHub
+- independent of agents
+- Owner reads → context restored instantly
 
 ---
 
-## Структура репозитория памяти (целевая)
+## Repository Structure (target)
 
 ```
 agent-memory-os/
-├── OPERATING-MODEL.md          ← этот файл
-├── MASTER.md                   ← конституция проекта
-├── MEMORY.md                   ← долговременная память
-├── USER.md                     ← про Igor
+├── OPERATING-MODEL.md          ← this file
+├── MASTER.md                   ← single source of truth
 │
 ├── identity/
-│   ├── IDENTITY-SWARM.md
-│   └── IDENTITY-OPUS.md
+│   ├── IDENTITY-AGENT-A.md
+│   └── IDENTITY-AGENT-B.md
 │
-├── runtime/                    ← меняются часто, асимметричная запись
-│   ├── SWARM-STATUS.md
-│   ├── SWARM-HANDOFF.md
-│   ├── OPUS-STATUS.md
-│   ├── OPUS-HANDOFF.md
+├── runtime/                    ← changes often, asymmetric write
+│   ├── AGENT-A-STATUS.md
+│   ├── AGENT-A-HANDOFF.md
+│   ├── AGENT-B-STATUS.md
+│   ├── AGENT-B-HANDOFF.md
 │   └── WATCHDOG-LOG.md
 │
 ├── bootstrap/
-│   ├── BOOTSTRAP-SWARM.md
-│   └── BOOTSTRAP-OPUS.md
+│   ├── BOOTSTRAP-AGENT-A.md
+│   └── BOOTSTRAP-AGENT-B.md
 │
 ├── blueprints/
-│   ├── SWARM-BLUEPRINT.md
-│   └── OPUS-DEV-BLUEPRINT.md
+│   ├── AGENT-A-BLUEPRINT.md
+│   └── AGENT-B-BLUEPRINT.md
 │
 ├── infra/
 │   ├── SERVERS.md
@@ -245,137 +233,98 @@ agent-memory-os/
 │   ├── DOMAINS.md
 │   └── RECOVERY-PROTOCOL.md
 │
-├── projects/
-│   ├── gamacchi/
-│   ├── ozon/
-│   ├── dds/
-│   ├── oc-gd/
-│   ├── pdf-shield/
-│   └── bis/
+├── projects/                   ← project-specific docs
 │
-├── compiled/                   ← генерируются скриптами, не редактировать
-│   ├── swarm-context.txt
-│   └── opus-context.txt
+├── compiled/                   ← generated by scripts, do not edit
+│   ├── agent-a-context.txt
+│   └── agent-b-context.txt
 │
 ├── scripts/
 │   ├── prepare-new.sh          ← context compiler (bash only)
 │   ├── memory-healthcheck.sh   ← watchdog
-│   ├── backup-memory.sh        ← offsite backup
-│   └── resurrect-swarm.sh
+│   └── backup-memory.sh        ← offsite backup
 │
-└── archive/
-    └── ...
+└── archive/                    ← old/superseded documents
 ```
 
 ---
 
-## Протокол старта сессии (обязателен для обоих агентов)
+## Session Startup Protocol (mandatory for both agents)
 
-### При каждом /new — Swarm читает:
+### On every /new — Agent A reads:
 ```bash
-cd /home/openclaw/agent-memory-os
+cd /path/to/agent-memory-os
 git pull --rebase origin main
-cat compiled/swarm-context.txt
-# если compiled не существует:
-cat identity/IDENTITY-SWARM.md
-cat bootstrap/BOOTSTRAP-SWARM.md
-cat runtime/OPUS-HANDOFF.md
-cat MASTER.md | head -80
+bash scripts/prepare-new.sh agent-a
+cat compiled/agent-a-context.txt
 ```
 
-### При каждом /new — Opus.Dev читает:
+### On every /new — Agent B reads:
 ```bash
-cd /root/openclaw-memory
+cd /path/to/agent-memory-os
 git pull --rebase origin main
-cat compiled/opus-context.txt
-# если compiled не существует:
-cat identity/IDENTITY-OPUS.md
-cat bootstrap/BOOTSTRAP-OPUS.md
-cat runtime/SWARM-HANDOFF.md
-cat MASTER.md | head -80
+bash scripts/prepare-new.sh agent-b
+cat compiled/agent-b-context.txt
 ```
 
 ---
 
-## Протокол взаимного восстановления
+## Mutual Recovery Protocol
 
-### Уровень 1 — контекстная амнезия (агент жив, но забыл себя)
-Igor пишет агенту:
+### Level 1 — Context amnesia (agent alive but forgot itself)
+Owner tells the agent:
 ```
-Прочитай OPERATING-MODEL.md и свой IDENTITY файл из репо
-YOUR_GITHUB_ORG/agent-memory-os, ветка main
+Read OPERATING-MODEL.md and your IDENTITY file from the repo
+github.com/YOUR_ORG/agent-memory-os, branch main
 ```
-Решается за минуты.
+Resolved in minutes.
 
-### Уровень 2 — сессия сломана, агент жив
-Igor или другой агент даёт команду запустить:
+### Level 2 — Session broken, agent alive
+Owner or other agent runs:
 ```bash
-bash /home/openclaw/agent-memory-os/scripts/prepare-new.sh swarm
+bash /path/to/agent-memory-os/scripts/prepare-new.sh agent-a
 ```
 
-### Уровень 3 — сервер мёртв, полное восстановление
+### Level 3 — Server dead, full recovery
 ```bash
-git clone git@github.com:YOUR_GITHUB_ORG/agent-memory-os.git
+git clone git@github.com:YOUR_ORG/agent-memory-os.git
 cd agent-memory-os && git checkout main
-bash scripts/resurrect-swarm.sh
+# Follow AGENT-A-BLUEPRINT.md or AGENT-B-BLUEPRINT.md for full recovery
 ```
-Если Git недоступен → восстановление из tar.gz слепка (Слой 6) или от Igor (Слой 7).
+If Git unavailable → restore from tar.gz snapshot (Layer 6) or from owner (Layer 7).
 
 ---
 
-## Правила ведения MASTER.md
+## MASTER.md Rules
 
-1. Только высокоуровневые факты
-2. Без логов, хвостов сессий, инцидентного шума
-3. Обновлять только при изменении состояния системы
-4. После каждого обновления MASTER.md — отправить файлом Igor в Telegram
-
----
-
-## Правила записи памяти — куда что писать
-
-| Тип информации | Куда писать |
-|---------------|------------|
-| Устойчивые факты о системе | MEMORY.md |
-| Состояние проектов | MASTER.md |
-| Текущий handoff | runtime/SWARM-HANDOFF.md или OPUS-HANDOFF.md |
-| Архитектура / ТЗ | projects/[проект]/ |
-| Инциденты, отладка | daily/ |
-| Временные заметки | daily/ |
-| Старые session-restore файлы | archive/ |
+1. Only high-level facts
+2. No logs, session tails, incident noise
+3. Update only when system state changes
+4. After every MASTER.md update → send file to owner via Telegram
 
 ---
 
-## Migration Plan: текущее → v2
+## Memory Write Rules — Where to Write What
 
-### Sprint 1 — Foundation (приоритет)
-- [ ] Создать `identity/IDENTITY-SWARM.md`
-- [ ] Создать `identity/IDENTITY-OPUS.md`
-- [ ] Создать `bootstrap/BOOTSTRAP-SWARM.md`
-- [ ] Создать `bootstrap/BOOTSTRAP-OPUS.md`
-- [ ] Создать `runtime/` с SWARM/OPUS файлами
-- [ ] Создать `infra/SERVERS.md`
-- [ ] Создать `infra/SSH-TRUST.md`
-- [ ] Создать `infra/RECOVERY-PROTOCOL.md`
-- [ ] Заполнить `USER.md`
-- [ ] Обновить `MEMORY.md`
-
-### Sprint 2 — Automation
-- [ ] Написать `scripts/prepare-new.sh` (bash only)
-- [ ] Написать `scripts/memory-healthcheck.sh`
-- [ ] Написать `scripts/backup-memory.sh` (offsite)
-- [ ] Настроить cron watchdog (каждые 30 мин)
-- [ ] Настроить cron backup (каждые 3-5 дней)
-
-### Sprint 3 — Hardening
-- [ ] ACL / chmod для asym. write boundaries
-- [ ] SSH mutual trust (проверить и задокументировать)
-- [ ] Первый offsite backup → Telegram канал
-- [ ] Прогнать сценарий полного восстановления
+| Type of information | Where to write |
+|---------------------|---------------|
+| Stable system facts | MASTER.md |
+| Current handoff | runtime/AGENT-A-HANDOFF.md or AGENT-B-HANDOFF.md |
+| Architecture / specs | projects/ |
+| Incidents, debugging | archive/ or daily notes |
+| Temporary notes | runtime/*-STATUS.md |
 
 ---
 
-_"Любая, даже самая совершенная система, рано или поздно ляжет.
-Разница между надёжной и ненадёжной системой — не в том, ложится ли она,
-а в том, сколько она теряет и как быстро встаёт."_
-— Igor D, 2026-04-28
+## Principles
+
+- **Radical honesty** — agents ask when unclear, never simulate activity
+- **Blast radius under control** — wide-impact changes only after owner approval
+- **Asymmetric write** — Agent A writes AGENT-A-*, Agent B writes AGENT-B-*, no conflicts
+- **Every spec/roadmap** → immediately to owner
+
+---
+
+_"Any system, no matter how perfect, will eventually go down.
+The difference between a reliable and unreliable system is not whether it goes down,
+but how much it loses and how fast it recovers."_

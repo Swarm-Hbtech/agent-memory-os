@@ -49,14 +49,13 @@ trap cleanup EXIT
 
 CORE_FILES=(
     "$REPO_DIR/MASTER.md"
-    "$REPO_DIR/MEMORY.md"
     "$REPO_DIR/OPERATING-MODEL.md"
-    "$REPO_DIR/identity/IDENTITY-SWARM.md"
-    "$REPO_DIR/identity/IDENTITY-OPUS.md"
-    "$REPO_DIR/bootstrap/BOOTSTRAP-SWARM.md"
-    "$REPO_DIR/bootstrap/BOOTSTRAP-OPUS.md"
-    "$REPO_DIR/blueprints/SWARM-BLUEPRINT.md"
-    "$REPO_DIR/blueprints/OPUS-DEV-BLUEPRINT.md"
+    "$REPO_DIR/identity/IDENTITY-AGENT-A.md"
+    "$REPO_DIR/identity/IDENTITY-AGENT-B.md"
+    "$REPO_DIR/bootstrap/BOOTSTRAP-AGENT-A.md"
+    "$REPO_DIR/bootstrap/BOOTSTRAP-AGENT-B.md"
+    "$REPO_DIR/blueprints/AGENT-A-BLUEPRINT.md"
+    "$REPO_DIR/blueprints/AGENT-B-BLUEPRINT.md"
 )
 
 append_alert() {

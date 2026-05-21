@@ -36,10 +36,10 @@ cd agent-memory-os
 ```
 
 Edit the following placeholders in all files:
-- `YOUR_TG_BOT_TOKEN` — Telegram bot token for alerts
-- `YOUR_TG_CHAT_ID` — your Telegram user ID
-- `YOUR_PRODUCTION_SERVER_IP` / `YOUR_DEV_SERVER_IP`
-- `Agent A` / `Agent B` — rename to your agents
+- `YOUR_TG_BOT_TOKEN` — Telegram bot token for alerts and backups
+- `YOUR_TG_CHAT_ID` — your Telegram user ID (for alerts)
+- `YOUR_PRODUCTION_SERVER_IP` / `YOUR_DEV_SERVER_IP` — in infra/SERVERS.md
+- `Agent A` / `Agent B` — rename to your agents' names in identity/, bootstrap/, blueprints/
 
 ### 2. Set up cron jobs
 
@@ -56,10 +56,17 @@ Edit the following placeholders in all files:
 Add this to your agent's system prompt or `/new` handler:
 
 ```bash
+# For Agent A (production ops):
 cd /path/to/agent-memory-os && \
 git pull --rebase origin main && \
 bash scripts/prepare-new.sh agent-a && \
 cat compiled/agent-a-context.txt
+
+# For Agent B (dev/architecture):
+cd /path/to/agent-memory-os && \
+git pull --rebase origin main && \
+bash scripts/prepare-new.sh agent-b && \
+cat compiled/agent-b-context.txt
 ```
 
 ---
@@ -86,9 +93,12 @@ agent-memory-os/
 │   └── WATCHDOG-LOG.md         # Watchdog event history
 ├── blueprints/                 # Full recovery maps per agent
 ├── infra/                      # Infrastructure docs
+├── projects/                   # Project-specific documentation
+├── archive/                    # Old/superseded documents
 ├── compiled/                   # Generated context payloads (gitignored)
 ├── MASTER.md                   # Single source of truth
-└── OPERATING-MODEL.md          # v2 architecture spec
+├── OPERATING-MODEL.md          # v2 architecture spec
+└── LICENSE                     # MIT
 ```
 
 ---

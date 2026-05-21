@@ -7,8 +7,8 @@
 # Работает без Node.js, PM2, БД — только bash + awk/sed/cat
 #
 # Использование:
-#   ./prepare-new.sh swarm     → compiled/swarm-context.txt
-#   ./prepare-new.sh opus      → compiled/opus-context.txt
+#   ./prepare-new.sh agent-a   → compiled/agent-a-context.txt
+#   ./prepare-new.sh agent-b   → compiled/agent-b-context.txt
 #
 # Spec: Fail-Safe + Aggressive Compression + Smart Tail
 # =============================================================================
@@ -20,8 +20,8 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPILED_DIR="$REPO_DIR/compiled"
 TIMESTAMP="$(date '+%Y-%m-%d %H:%M UTC')"
 
-if [[ "$AGENT" != "swarm" && "$AGENT" != "opus" ]]; then
-    echo "Usage: $0 <swarm|opus>" >&2
+if [[ "$AGENT" != "agent-a" && "$AGENT" != "agent-b" ]]; then
+    echo "Usage: $0 <agent-a|agent-b>" >&2
     exit 1
 fi
 
@@ -184,33 +184,20 @@ check_memory_lock() {
 
     check_memory_lock
 
-    if [[ "$AGENT" == "swarm" ]]; then
-        read_file "IDENTITY: WHO AM I" "$REPO_DIR/identity/IDENTITY-SWARM.md"
+    # Determine the OTHER agent for handoff reading
+    if [[ "$AGENT" == "agent-a" ]]; then
+        OTHER="agent-b"
     else
-        read_file "IDENTITY: WHO AM I" "$REPO_DIR/identity/IDENTITY-OPUS.md"
+        OTHER="agent-a"
     fi
 
-    if [[ "$AGENT" == "swarm" ]]; then
-        read_file "BOOTSTRAP: WHAT TO DO" "$REPO_DIR/bootstrap/BOOTSTRAP-SWARM.md"
-    else
-        read_file "BOOTSTRAP: WHAT TO DO" "$REPO_DIR/bootstrap/BOOTSTRAP-OPUS.md"
-    fi
-
-    if [[ "$AGENT" == "swarm" ]]; then
-        read_handoff "HANDOFF FROM OPUS.DEV" "$REPO_DIR/runtime/OPUS-HANDOFF.md" 50
-    else
-        read_handoff "HANDOFF FROM SWARM" "$REPO_DIR/runtime/SWARM-HANDOFF.md" 50
-    fi
-
-    if [[ "$AGENT" == "swarm" ]]; then
-        read_handoff "MY LAST STATUS" "$REPO_DIR/runtime/SWARM-STATUS.md" 30
-    else
-        read_handoff "MY LAST STATUS" "$REPO_DIR/runtime/OPUS-STATUS.md" 30
-    fi
-
+    read_file "IDENTITY: WHO AM I" "$REPO_DIR/identity/IDENTITY-${AGENT^^}.md"
+    read_file "BOOTSTRAP: WHAT TO DO" "$REPO_DIR/bootstrap/BOOTSTRAP-${AGENT^^}.md"
+    read_handoff "HANDOFF FROM ${OTHER^^}" "$REPO_DIR/runtime/${OTHER^^}-HANDOFF.md" 50
+    read_handoff "MY LAST STATUS" "$REPO_DIR/runtime/${AGENT^^}-STATUS.md" 30
     read_file "MASTER: PROJECT OVERVIEW" "$REPO_DIR/MASTER.md" 100
 
-    if [[ "$AGENT" == "swarm" ]]; then
+    if [[ "$AGENT" == "agent-a" ]]; then
         read_file "CRITICAL INFRA" "$REPO_DIR/infra/SERVERS.md" 60
     fi
 
