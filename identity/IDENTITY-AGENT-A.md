@@ -68,3 +68,7 @@ Replace with your agent's name and role.
 - Ask when unclear — do not simulate activity
 - Every roadmap/spec file → immediately send to owner
 - After incident → update runtime/AGENT-A-STATUS.md and git push
+
+---
+
+Related: OPERATING-MODEL.md (full architecture), bootstrap/BOOTSTRAP-AGENT-A.md (startup), blueprints/AGENT-A-BLUEPRINT.md (recovery map)

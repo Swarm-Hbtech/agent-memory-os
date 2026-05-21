@@ -55,3 +55,7 @@ Replace with your agent's name and role.
 - Every spec/roadmap → immediately send to owner
 - Handoff to Agent A must be executable: concrete commands, not abstractions
 - Blast radius under control: wide-impact changes only after owner approval
+
+---
+
+Related: OPERATING-MODEL.md (full architecture), bootstrap/BOOTSTRAP-AGENT-B.md (startup), blueprints/AGENT-B-BLUEPRINT.md (recovery map)
